@@ -1,0 +1,20 @@
+# Core Framework
+Django==5.0.1
+djangorestframework==3.14.0
+
+# ASGI Server
+uvicorn[standard]==0.27.0
+gunicorn==21.2.0
+
+# Database
+psycopg2-binary==2.9.9
+
+# Async Task Queue
+celery==5.3.6
+redis==5.0.1
+
+# Environment Variables
+python-decouple==3.8
+
+# API Documentation
+drf-spectacular==0.27.0

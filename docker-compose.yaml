@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # Database Service
+  # ==========================================
+  db:
+    image: postgres:15-alpine
+    container_name: intelligent_researcher_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: intelligent_researcher_db
+      POSTGRES_USER: intelligent_researcher_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intelligent_researcher_user -d intelligent_researcher_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Uncomment to access from host (dev only!)
+    # ports:
+    #   - "5432:5432"
+    networks:
+      - internal_network
+
+  # ==========================================
+  # Redis Service (Task Queue Broker)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: intelligent_researcher_redis
+    command: redis-server --requirepass $(cat /run/secrets/redis_password)
+    volumes:
+      - redis_data:/data
+    secrets:
+      - redis_password
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal_network
+
+  # ==========================================
+  # Django Web Service
+  # ==========================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: intelligent_researcher_web
+    command: uvicorn core.asgi:application --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./src:/app  # Bind mount for hot-reload
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - DATABASE_HOST=db
+      - DATABASE_NAME=intelligent_researcher_db
+      - DATABASE_USER=intelligent_researcher_user
+      - REDIS_HOST=redis
+    secrets:
+      - db_password
+      - django_secret_key
+      - redis_password
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - internal_network
+
+# ==========================================
+# Docker Secrets (Development)
+# ==========================================
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  django_secret_key:
+    file: ./secrets/django_secret_key.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+
+# ==========================================
+# Persistent Volumes
+# ==========================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ==========================================
+# Internal Network
+# ==========================================
+networks:
+  internal_network:
+    driver: bridge
