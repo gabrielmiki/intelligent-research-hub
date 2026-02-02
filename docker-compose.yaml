@@ -1,6 +1,21 @@
-version: '3.8'
-
 services:
+  # ==========================================
+  # REVERSE PROXY (Gateway)
+  # ==========================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: intelligent_researcher_nginx
+    ports:
+      - "80:80"  # Expose standard HTTP port
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_volume:/app/static  # Serve static files directly
+    depends_on:
+      - web
+    networks:
+      - public_network
+      - internal_network
+
   # ==========================================
   # Database Service
   # ==========================================
@@ -32,13 +47,13 @@ services:
   redis:
     image: redis:7-alpine
     container_name: intelligent_researcher_redis
-    command: redis-server --requirepass $(cat /run/secrets/redis_password)
+    command: sh -c 'redis-server --requirepass "$(cat /run/secrets/redis_password)"'
     volumes:
       - redis_data:/data
     secrets:
       - redis_password
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a $(cat /run/secrets/redis_password) ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,28 +61,57 @@ services:
       - internal_network
 
   # ==========================================
-  # Django Web Service
+  # WEB API (Django + Uvicorn)
   # ==========================================
   web:
     build:
       context: .
-      dockerfile: Dockerfile.dev
     container_name: intelligent_researcher_web
+    # In dev, we bind to 0.0.0.0 so Nginx can reach it via internal network
     command: uvicorn core.asgi:application --host 0.0.0.0 --port 8000 --reload
     volumes:
-      - ./src:/app  # Bind mount for hot-reload
-    ports:
-      - "8000:8000"
+      - ./:/app
+      - static_volume:/app/static
     environment:
       - DEBUG=True
       - DATABASE_HOST=db
-      - DATABASE_NAME=intelligent_researcher_db
-      - DATABASE_USER=intelligent_researcher_user
       - REDIS_HOST=redis
+      # Point to the secret file path for Google Auth
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/google_credentials
     secrets:
       - db_password
       - django_secret_key
       - redis_password
+      - google_credentials  # <--- Added
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - internal_network
+
+  # ==========================================
+  # AI WORKER (Celery)
+  # ==========================================
+  worker:
+    build:
+      context: .
+    container_name: intelligent_researcher_worker
+    # Run the worker process
+    command: celery -A core worker -l info
+    volumes:
+      - ./:/app
+    environment:
+      - DEBUG=True
+      - DATABASE_HOST=db
+      - REDIS_HOST=redis
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/google_credentials
+    secrets:
+      - db_password
+      - django_secret_key
+      - redis_password
+      - google_credentials # <--- Needed for AI calls
     depends_on:
       db:
         condition: service_healthy
@@ -86,6 +130,8 @@ secrets:
     file: ./secrets/django_secret_key.txt
   redis_password:
     file: ./secrets/redis_password.txt
+  google_credentials:
+    file: ./secrets/google_credentials.json
 
 # ==========================================
 # Persistent Volumes
@@ -95,6 +141,8 @@ volumes:
     driver: local
   redis_data:
     driver: local
+  static_volume:
+    driver: local
 
 # ==========================================
 # Internal Network
@@ -102,3 +150,4 @@ volumes:
 networks:
   internal_network:
     driver: bridge
+  public_network:
