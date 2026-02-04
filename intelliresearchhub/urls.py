@@ -16,9 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from interface_layer.views import home_view
+from interface_layer import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', home_view, name='home'),
+    path('summarize/', views.make_summary_request, name='submit-summary'),
+    path('summarize/<uuid:summary_id>/', views.get_summary_status, name='get-summary-detail'),
+    path('my-summaries/', views.get_summaries, name='list-summaries'),
 ]

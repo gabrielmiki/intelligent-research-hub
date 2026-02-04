@@ -1,36 +1,72 @@
-from django.shortcuts import render
-from django.http import HttpResponse
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from django.shortcuts import get_object_or_404
 
+from .models import Summary
+from .serializer import SummaryRequestSerializer, SummaryDetailSerializer
+from domain.tasks import process_summary_task
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated]) # Ensures request.user exists
 def make_summary_request(request):
-    # TODO: query url
-
-    # TODO: verify weather url is valid
-
-    # TODO: Save to DB (Summary(url=..., status='PENDING')).
-    # ⛔ STOP: You must not fetch the URL content inside the Django view. If the target website is slow or times out 
-    # (e.g., takes 10 seconds to load), your Django server will hang for 10 seconds. If 5 users do this at once, your 
-    # API becomes unresponsive.
-
-    # ✅ The Fix: The View should only save the URL to the DB (status: PENDING) and fire the Celery task. 
-    # The Celery Worker (background process) is responsible for fetching the content.
-
-    # TODO: Enqueue Task (process_summary.delay(summary_id))
-
-    # TODO: Return HTTP 202 Accepted (with the summary_id)
-
-def get_summary_status(request, summary_id):
-    # TODO: query database for summary status by summary_id
-
-    # TODO: if summary exists, return status
-    # ⛔ STOP: Do not query Redis/Celery directly from the View to check status. It is slow, complex, and unnecessary. 
+    """
+    Receives a URL, saves it as PENDING, and triggers the background worker.
+    """
+    # 1. Validation (Verify URL is valid)
+    # The serializer automatically checks if the URL format is correct.
+    serializer = SummaryRequestSerializer(data=request.data)
     
-    # ✅ The Fix: When you receive the request, you immediately save a record in Postgres with status='PENDING'. 
-    # The Database is your Single Source of Truth. If the record exists in the DB, you know the status. 
-    # If it doesn't, it's a 404.
+    if serializer.is_valid():
+        # 2. Save to DB (Status: PENDING)
+        # We attach the current user manually since it's not in the request body
+        summary = serializer.save(user=request.user, status='PENDING')
 
-    # TODO: return response to user
+        # 3. Enqueue Task
+        # .delay() is the magic method that sends this to Redis/Celery
+        process_summary_task.delay(summary.id)
 
-def get_summaries(request, status):
-    # TODO: query database for summaries with given status
+        # 4. Return HTTP 202 Accepted
+        # 202 literally means: "I have received your request but haven't finished processing it."
+        return Response(
+            {'id': summary.id, 'status': summary.status, 'message': 'Request queued.'},
+            status=status.HTTP_202_ACCEPTED
+        )
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    # TODO: return list of summaries to user
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_summary_status(request, summary_id):
+    """
+    Checks the status of a specific request.
+    """
+    # 1. Query Database
+    # get_object_or_404 handles the "Does not exist" error automatically
+    summary = get_object_or_404(Summary, id=summary_id, user=request.user)
+
+    # 2. Return Response
+    serializer = SummaryDetailSerializer(summary)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_summaries(request):
+    """
+    Lists summaries, optionally filtering by status (e.g., ?status=COMPLETED)
+    """
+    # 1. Filter by Status (Optional)
+    status_param = request.query_params.get('status')
+    
+    # Base query: Only show the logged-in user's data
+    queryset = Summary.objects.filter(user=request.user)
+
+    if status_param:
+        queryset = queryset.filter(status=status_param.upper())
+
+    # 2. Return List
+    serializer = SummaryDetailSerializer(queryset, many=True)
+    return Response(serializer.data)
