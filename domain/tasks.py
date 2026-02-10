@@ -2,6 +2,14 @@
 from celery import shared_task
 from interface_layer.models import Summary  # <--- IMPORTING THE MODEL
 from domain.services import ResearchAgent
+import time
+
+@shared_task
+def debug_hello_world():
+    print("🚀 HELLO FROM CELERY! The task has started.")
+    time.sleep(5)  # Simulate some work
+    print("✅ HELLO FROM CELERY! The task is finished.")
+    return "Task Complete"
 
 @shared_task
 def process_summary_task(summary_id):

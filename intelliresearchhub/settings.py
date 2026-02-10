@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -38,6 +39,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Third-party apps
+    'rest_framework',
+    'django_celery_results',
+
+    # My apps
     'interface_layer',
 ]
 
@@ -118,6 +125,51 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# 🔴 ADD THIS LINE:
+# This tells Django: "When I run collectstatic, dump everything into the /app/staticfiles folder"
+# OLD:
+# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# NEW:
+STATIC_ROOT = '/home/appuser/staticfiles'
+
 # Docker service name is 'redis', port is 6379
 CELERY_BROKER_URL = 'redis://redis:6379/0'
 CELERY_RESULT_BACKEND = 'django-db' # Or 'redis://redis:6379/0' if you prefer results in Redis
+
+# Helper to read Docker Secrets
+def get_secret(secret_name, default=None):
+    secret_path = f"/run/secrets/{secret_name}"
+    try:
+        with open(secret_path, "r") as f:
+            return f.read().strip()
+    except IOError:
+        return default
+
+# --- DATABASE CONFIG ---
+DB_PASSWORD = get_secret("db_password", "your_local_db_password")
+DB_HOST = os.environ.get("DATABASE_HOST", "localhost") # Defaults to localhost if not in Docker
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('POSTGRES_DB', 'intelligent_researcher_db'),
+        'USER': os.environ.get('POSTGRES_USER', 'intelligent_researcher_user'),
+        'PASSWORD': DB_PASSWORD,
+        'HOST': DB_HOST,
+        'PORT': '5432',
+    }
+}
+
+# --- REDIS / CELERY CONFIG ---
+REDIS_PASSWORD = get_secret("redis_password", None)
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+
+if REDIS_PASSWORD:
+    # Docker Production Style (with Password)
+    CELERY_BROKER_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:6379/0"
+else:
+    # Localhost Development Style (No Password)
+    CELERY_BROKER_URL = f"redis://{REDIS_HOST}:6379/0"
+
+CELERY_RESULT_BACKEND = 'django-db'

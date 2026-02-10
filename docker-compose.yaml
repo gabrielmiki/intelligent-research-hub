@@ -9,7 +9,10 @@ services:
       - "80:80"  # Expose standard HTTP port
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - static_volume:/app/static  # Serve static files directly
+      # - static_volume:/app/static  # Serve static files directly
+      # 3. Map the SAME volume to where Nginx expects to see files
+      # (This "teleports" the files from appuser's home to where Nginx looks)
+      - static_volume:/app/staticfiles
     depends_on:
       - web
     networks:
@@ -68,10 +71,12 @@ services:
       context: .
     container_name: intelligent_researcher_web
     # In dev, we bind to 0.0.0.0 so Nginx can reach it via internal network
-    command: uvicorn core.asgi:application --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn intelliresearchhub.asgi:application --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./:/app
-      - static_volume:/app/static
+      # - static_volume:/app/static
+      # 2. Map Django's output to the volume
+      - static_volume:/home/appuser/staticfiles
     environment:
       - DEBUG=True
       - DATABASE_HOST=db
@@ -99,7 +104,7 @@ services:
       context: .
     container_name: intelligent_researcher_worker
     # Run the worker process
-    command: celery -A core worker -l info
+    command: celery -A intelliresearchhub worker -l info
     volumes:
       - ./:/app
     environment:

@@ -15,11 +15,13 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from interface_layer import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # Enables the "Log in" button in the API interface
+    path('api-auth/', include('rest_framework.urls')),
     path('summarize/', views.make_summary_request, name='submit-summary'),
     path('summarize/<uuid:summary_id>/', views.get_summary_status, name='get-summary-detail'),
     path('my-summaries/', views.get_summaries, name='list-summaries'),
