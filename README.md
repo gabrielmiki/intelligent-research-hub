@@ -60,6 +60,7 @@ See API documentation at `/api/schema/swagger-ui/`
 
 ## Documentation
 
-For complete technical specifications, architecture details, database design, and deployment strategies, refer to the [Technical Design Document](AI-Powered_Content_Summarizer___Researcher.pdf).
+For complete technical specifications, architecture details, database design, and deployment strategies, refer to the [Technical Design Document](AI-Powered_Content_Summarizer_Researcher.pdf).
 
 **Author**: Gabriel de Almeida Miki
+
