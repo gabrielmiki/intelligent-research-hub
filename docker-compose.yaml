@@ -12,7 +12,8 @@ services:
       # - static_volume:/app/static  # Serve static files directly
       # 3. Map the SAME volume to where Nginx expects to see files
       # (This "teleports" the files from appuser's home to where Nginx looks)
-      - static_volume:/app/staticfiles
+      # - static_volume:/app/staticfiles
+      - static_volume:/home/appuser/staticfiles
     depends_on:
       - web
     networks:

@@ -8,6 +8,30 @@ from .models import Summary
 from .serializer import SummaryRequestSerializer, SummaryDetailSerializer
 from domain.tasks import process_summary_task
 
+from django.shortcuts import render, redirect
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def dashboard_view(request):
+    """
+    Serves the dashboard HTML page.
+    The @login_required decorator ensures only logged-in users can see it.
+    """
+    return render(request, 'dashboard.html')
+
+def register_view(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)  # Auto-login after registration
+            return redirect('dashboard')  # Redirect to your dashboard
+    else:
+        form = UserCreationForm()
+    return render(request, 'registration/register.html', {'form': form})
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated]) # Ensures request.user exists
 def make_summary_request(request):

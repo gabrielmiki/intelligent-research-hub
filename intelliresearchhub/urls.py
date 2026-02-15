@@ -17,12 +17,18 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from interface_layer import views
+from django.views.generic.base import TemplateView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # Add Django's built-in auth URLs (Login/Logout/Password Reset)
+    path('accounts/', include('django.contrib.auth.urls')),
     # Enables the "Log in" button in the API interface
     path('api-auth/', include('rest_framework.urls')),
     path('summarize/', views.make_summary_request, name='submit-summary'),
     path('summarize/<uuid:summary_id>/', views.get_summary_status, name='get-summary-detail'),
     path('my-summaries/', views.get_summaries, name='list-summaries'),
+
+    path('register/', views.register_view, name='register'),
+    path('dashboard/', views.dashboard_view, name='dashboard'), # Your frontend from before
 ]

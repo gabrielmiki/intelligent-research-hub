@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Agent Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding-top: 20px; background-color: #f8f9fa; }
+        .card { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
+        /* Status Badges */
+        .status-PENDING { color: #fd7e14; font-weight: bold; }
+        .status-COMPLETED { color: #198754; font-weight: bold; }
+        .status-FAILED { color: #dc3545; font-weight: bold; }
+        
+        /* Table Tweaks */
+        .uuid-text { font-family: monospace; font-size: 0.9em; color: #6c757d; }
+        .table-responsive { overflow-x: auto; } /* Ensure horizontal scroll for small screens */
+        .table-responsive table { min-width: 600px; } /* Prevent table from collapsing too much */
+
+        /* Summary Box Formatting in Result Viewer */
+        .summary-box-preview {
+            background-color: #ffffff;
+            border-left: 5px solid #0d6efd; /* Blue accent line */
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap; /* Preserves line breaks and spacing */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            font-size: 0.9em; /* Slightly smaller for preview */
+            max-height: 200px; /* Limit height for preview */
+            overflow-y: auto; /* Scroll if content overflows */
+        }
+
+        /* Full Screen Summary Viewer */
+        #summaryFullView {
+            display: none; /* Hidden by default */
+            margin-top: 30px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+            padding: 30px;
+        }
+
+        #summaryFullView .summary-content {
+            font-family: 'Georgia', serif; /* A more readable font for long text */
+            line-height: 1.8;
+            font-size: 1.1em;
+            white-space: pre-wrap; /* Critical for preserving formatting */
+            color: #333;
+        }
+
+        #summaryFullView h4 {
+            color: #0d6efd;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        #summaryFullView .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-light bg-white border-bottom mb-4">
+    <div class="container">
+        <span class="navbar-brand mb-0 h1">🕵️‍♀️ IntelliResearchHub</span>
+        <div class="d-flex align-items-center">
+            <span class="me-3 text-muted">Welcome, {{ user.username }}!</span>
+            <form action="{% url 'logout' %}" method="post" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger btn-sm">Logout</button>
+            </form>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">1. Start New Research</h5>
+        </div>
+        <div class="card-body">
+            <div class="input-group">
+                <input type="text" id="urlInput" class="form-control" placeholder="Enter URL (e.g., https://example.com)">
+                <button class="btn btn-dark" onclick="createRequest()">🚀 Start Research</button>
+            </div>
+            <div id="createResult" class="mt-2"></div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-5">
+            <div class="card h-100">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">2. Result Viewer</h5>
+                </div>
+                <div class="card-body">
+                    <div class="input-group mb-3">
+                        <input type="text" id="idInput" class="form-control" placeholder="Paste UUID here...">
+                        <button class="btn btn-outline-secondary" onclick="checkStatus()">🔍 Check</button>
+                    </div>
+                    <div id="statusResult"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">3. Research History</h5>
+                    <button class="btn btn-sm btn-light" onclick="loadSummaries()">🔄 Refresh</button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>UUID</th>
+                                    <th>URL</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="summaryTableBody">
+                                <tr><td colspan="4" class="text-center p-3">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="summaryFullView" class="position-relative">
+        <span class="close-btn" onclick="hideFullSummary()">&times;</span>
+        <h4 id="fullViewTitle">Summary Details</h4>
+        <p><strong>UUID:</strong> <span id="fullViewUUID" class="uuid-text"></span></p>
+        <p><strong>URL:</strong> <a id="fullViewURL" href="#" target="_blank"></a></p>
+        <p><strong>Status:</strong> <span id="fullViewStatus"></span></p>
+        <hr>
+        <div class="summary-content" id="fullViewContent"></div>
+    </div>
+
+</div>
+
+<script>
+    // ⚙️ CONFIGURATION
+    const ENDPOINTS = {
+        create: `/summarize/`,
+        list:   `/my-summaries/`,
+        detail: (id) => `/summarize/${id}/`
+    };
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    // ==========================================
+    // 1. CREATE REQUEST
+    // ==========================================
+    async function createRequest() {
+        const urlInput = document.getElementById('urlInput');
+        const resultDiv = document.getElementById('createResult');
+        const url = urlInput.value;
+        
+        if (!url) { alert("Please enter a URL!"); return; }
+
+        resultDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div> Sending...';
+
+        try {
+            const response = await fetch(ENDPOINTS.create, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                body: JSON.stringify({ url: url })
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+                resultDiv.innerHTML = `<div class="alert alert-success py-2 mb-0">✅ Request Queued!</div>`;
+                urlInput.value = '';
+                loadSummaries(); 
+                // Auto-show the full view for the newly created request
+                showFullSummary(data.id, url, data.status, null); // Summary is not available yet
+                document.getElementById('idInput').value = data.id; // Also populate the input
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-danger py-2 mb-0">❌ Error: ${JSON.stringify(data)}</div>`;
+            }
+        } catch (error) {
+            console.error(error);
+            resultDiv.innerHTML = `<div class="alert alert-danger py-2 mb-0">Network Error</div>`;
+        }
+    }
+
+    // ==========================================
+    // 2. CHECK STATUS & SHOW SUMMARY
+    // ==========================================
+    async function checkStatus() {
+        const id = document.getElementById('idInput').value.trim();
+        const resultDiv = document.getElementById('statusResult');
+
+        if (!id) { alert("Enter a UUID!"); return; }
+        resultDiv.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-secondary" role="status"></div></div>';
+
+        try {
+            const response = await fetch(ENDPOINTS.detail(id));
+            if (!response.ok) {
+                resultDiv.innerHTML = `<div class="alert alert-danger">❌ Request not found.</div>`;
+                hideFullSummary(); // Hide full view if not found
+                return;
+            }
+            const data = await response.json();
+
+            // Preview in the side panel
+            let previewSummaryHtml = '';
+            if (data.status === 'COMPLETED' && data.output_summary) {
+                previewSummaryHtml = `
+                    <div class="summary-box-preview shadow-sm">
+                        <h6 class="text-primary mb-2">📝 AI Summary:</h6>
+                        ${data.output_summary}
+                    </div>
+                `;
+            } else if (data.status === 'COMPLETED' && !data.output_summary) {
+                previewSummaryHtml = `<div class="alert alert-warning mt-3">⚠️ Completed, but summary is empty.</div>`;
+            } else {
+                previewSummaryHtml = `<div class="text-muted mt-3 fst-italic">Summary will appear here when completed.</div>`;
+            }
+
+            resultDiv.innerHTML = `
+                <div class="border rounded p-3 bg-light mt-2">
+                    <div class="mb-2"><strong>Status:</strong> <span class="status-${data.status}">${data.status}</span></div>
+                    <div class="mb-2"><strong>URL:</strong> <a href="${data.url}" target="_blank" class="text-break">${data.url}</a></div>
+                    <div class="mb-0"><small class="text-muted">ID: ${data.id}</small></div>
+                    ${previewSummaryHtml}
+                </div>
+                <div class="d-grid gap-2 mt-3">
+                    <button class="btn btn-info" onclick="showFullSummary('${data.id}', '${data.url}', '${data.status}', \`${data.output_summary || ''}\`)">
+                        View Full Summary
+                    </button>
+                </div>
+            `;
+            
+            // Also show the full summary view immediately if it has content
+            if (data.status === 'COMPLETED' && data.output_summary) {
+                showFullSummary(data.id, data.url, data.status, data.output_summary);
+            } else {
+                hideFullSummary(); // Hide if no summary to show
+            }
+
+        } catch (error) {
+            console.error(error);
+            resultDiv.innerHTML = `<div class="alert alert-danger">Error fetching details.</div>`;
+            hideFullSummary();
+        }
+    }
+
+    // ==========================================
+    // 3. LIST SUMMARIES
+    // ==========================================
+    async function loadSummaries() {
+        const tbody = document.getElementById('summaryTableBody');
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center p-3">Loading...</td></tr>';
+
+        try {
+            const response = await fetch(ENDPOINTS.list);
+            if (response.status === 403) return location.reload(); 
+
+            const data = await response.json();
+            tbody.innerHTML = ''; 
+            
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center p-3 text-muted">No history found.</td></tr>';
+                return;
+            }
+
+            data.reverse().forEach(item => {
+                const shortId = item.id.substring(0, 8) + '...';
+                const row = `
+                    <tr>
+                        <td><span class="uuid-text" title="${item.id}">${shortId}</span></td>
+                        <td><a href="${item.url}" target="_blank" class="d-inline-block text-truncate" style="max-width: 120px;">${item.url}</a></td>
+                        <td><span class="badge bg-${item.status === 'COMPLETED' ? 'success' : (item.status === 'FAILED' ? 'danger' : 'warning')}">${item.status}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" 
+                                onclick="document.getElementById('idInput').value='${item.id}'; checkStatus();">
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        } catch (error) {
+            console.error(error);
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Failed to load.</td></tr>';
+        }
+    }
+
+    // ==========================================
+    // NEW FUNCTIONS FOR FULL SCREEN VIEWER
+    // ==========================================
+    function showFullSummary(id, url, status, summaryContent) {
+        const fullView = document.getElementById('summaryFullView');
+        document.getElementById('fullViewUUID').textContent = id;
+        document.getElementById('fullViewURL').href = url;
+        document.getElementById('fullViewURL').textContent = url;
+        document.getElementById('fullViewStatus').className = `status-${status}`; // Apply status styling
+        document.getElementById('fullViewStatus').textContent = status;
+        document.getElementById('fullViewContent').innerHTML = summaryContent || '<p class="text-muted">No summary content available yet.</p>';
+        document.getElementById('fullViewTitle').textContent = `Summary Details for ${id.substring(0,8)}...`;
+        
+        fullView.style.display = 'block'; // Make it visible
+    }
+
+    function hideFullSummary() {
+        document.getElementById('summaryFullView').style.display = 'none'; // Hide it
+    }
+
+    // Load list automatically on page open
+    loadSummaries();
+</script>
+
+</body>
+</html>

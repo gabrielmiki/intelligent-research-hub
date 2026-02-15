@@ -63,7 +63,7 @@ ROOT_URLCONF = 'intelliresearchhub.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -173,3 +173,9 @@ else:
     CELERY_BROKER_URL = f"redis://{REDIS_HOST}:6379/0"
 
 CELERY_RESULT_BACKEND = 'django-db'
+
+# Where to redirect after login
+LOGIN_REDIRECT_URL = 'dashboard' 
+
+# Where to redirect after logout
+LOGOUT_REDIRECT_URL = 'login'
