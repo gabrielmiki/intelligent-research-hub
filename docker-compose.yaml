@@ -79,6 +79,7 @@ services:
       # 2. Map Django's output to the volume
       - static_volume:/home/appuser/staticfiles
     environment:
+      - PYTHONUNBUFFERED=1
       - DEBUG=True
       - DATABASE_HOST=db
       - REDIS_HOST=redis
@@ -109,6 +110,7 @@ services:
     volumes:
       - ./:/app
     environment:
+      - PYTHONUNBUFFERED=1
       - DEBUG=True
       - DATABASE_HOST=db
       - REDIS_HOST=redis
@@ -137,7 +139,7 @@ secrets:
   redis_password:
     file: ./secrets/redis_password.txt
   google_credentials:
-    file: ./secrets/google_credentials.json
+    file: ./secrets/google_credentials.txt
 
 # ==========================================
 # Persistent Volumes
